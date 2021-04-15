@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, Image, TouchableOpacity, ActivityIndicator, Button, LogBox } from 'react-native';
+import { StyleSheet, Text, View, Image, TouchableOpacity, ActivityIndicator, LogBox, AsyncStorage } from 'react-native';
 import * as Facebook from 'expo-facebook';
-
+import axios from 'axios';
 LogBox.ignoreAllLogs(true)
 
 export default function App() {
@@ -9,7 +9,6 @@ export default function App() {
   const [isLoggedin, setLoggedinStatus] = useState(false);
   const [userData, setUserData] = useState(null);
   const [isImageLoading, setImageLoadStatus] = useState(false);
-
   facebookLogIn = async () => {
     try {
       await Facebook.initializeAsync({
@@ -25,12 +24,26 @@ export default function App() {
         permissions: ['public_profile'],
       });
       if (type === 'success') {
-        console.log(token)
         fetch(`https://graph.facebook.com/me?access_token=${token}&fields=id,name,email,picture.height(500)`)
           .then(response => response.json())
           .then(data => {
-            setLoggedinStatus(true);
-            setUserData(data);
+            AsyncStorage.setItem('ACCESS_TOKEN', token)
+            axios.post('https://fc948931aba9.ngrok.io/api/v1/login', {
+              data: data,
+              access_token: token,
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Accept': 'application/json'
+              },
+              responseType: 'json'
+            })
+            .then(response => {
+              setUserData(data);
+              setLoggedinStatus(true);
+            })
+            .catch(error => {
+              console.log(error);
+            });
           })
           .catch(e => console.log(e))
       }
@@ -40,9 +53,17 @@ export default function App() {
   }
 
   logout = () => {
-    setLoggedinStatus(false);
-    setUserData(null);
-    setImageLoadStatus(false);
+    AsyncStorage.getItem('ACCESS_TOKEN').then(value =>
+      axios.delete(`https://fc948931aba9.ngrok.io/api/v1/logout?access_token=${value}`)
+      .then(response => {
+        setLoggedinStatus(false);
+        setUserData(null);
+        setImageLoadStatus(false);
+      })
+      .catch(error => {
+        console.log(error);
+      })
+    );
   }
 
   return (
@@ -70,6 +91,7 @@ export default function App() {
         </TouchableOpacity>
       </View>
   );
+
 }
 
 const styles = StyleSheet.create({
@@ -86,11 +108,11 @@ const styles = StyleSheet.create({
     borderRadius: 20
   },
   logoutBtn: {
-    backgroundColor: 'grey',
+    backgroundColor: '#ffa31a',
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 20,
     position: "absolute",
-    bottom: 0
+    bottom: 20
   },
 });
